@@ -130,10 +130,36 @@ template<int size> struct SizeBoundsForStaticSize {
 };
 
 template<class AxisT, int StaticSize> struct setAxisStaticSize {
-    using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
-        AxisT::is_used, AxisT::stride,
-        typename SizeBoundsForStaticSize<StaticSize>::type>;
+    using SizeBoundsT = typename SizeBoundsForStaticSize<StaticSize>::type;
+    using type = typename setAxisSizeBounds<AxisT, SizeBoundsT>::type;
+    // using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
+    //     AxisT::is_used, AxisT::stride,
+    //     typename SizeBoundsForStaticSize<StaticSize>::type>;
 };
+
+
+#define SET_AXIS_PROP(STRUCT_NAME, AXES_T, AX, VAL) \
+    typename STRUCT_NAME<GET_AXIS_T(AXES_T, AX), VAL>::type
+
+#define SET_AXIS_CONTIGUOUS(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisContiguous, AXES_T, AX, BOOL)
+
+#define SET_AXIS_DENSE(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisDense, AXES_T, AX, BOOL)
+
+#define SET_AXIS_STRIDED(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisStrided, AXES_T, AX, BOOL)
+
+#define SET_AXIS_USED(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisUsed, AXES_T, AX, BOOL)
+    // typename setAxisContiguous(GET_AXIS_T(AXES_T, AX), BOOL)::type
+
+#define SET_AXIS_STRIDE(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisStaticStride, AXES_T, AX, BOOL)
+
+#define SET_AXIS_SIZE(AXES_T, AX, BOOL) \
+    SET_AXIS_PROP(setAxisStaticSize, AXES_T, AX, BOOL)
+
 
 // template<int size> struct SizeBoundsForSize { using type = NoBounds; };
 
@@ -166,6 +192,7 @@ template<class Axes> struct getAxis<1, Axes> { using type = typename Axes::AxisT
 template<class Axes> struct getAxis<2, Axes> { using type = typename Axes::AxisT2; };
 template<class Axes> struct getAxis<3, Axes> { using type = typename Axes::AxisT3; };
 
+#define GET_AXIS_T(AXES, INT) typename getAxis<INT, AXES>::type
 
 // template<int Ax, class Axis> struct getAxis {};
 // template<class Axis>
@@ -359,33 +386,76 @@ private:
     const strides_t _strides;
 };
 
-
-template<int Rank, int Order> struct GetAxesType {};
-template<> struct GetAxesType<1, StorageOrders::RowMajor> { using type = AxesDense1D; };
-template<> struct GetAxesType<1, StorageOrders::ColMajor> { using type = AxesDense1D; };
-template<> struct GetAxesType<2, StorageOrders::RowMajor> { using type = AxesRowMajor2D; };
-template<> struct GetAxesType<2, StorageOrders::ColMajor> { using type = AxesColMajor2D; };
-template<> struct GetAxesType<3, StorageOrders::RowMajor> { using type = AxesRowMajor3D; };
-template<> struct GetAxesType<3, StorageOrders::ColMajor> { using type = AxesColMajor3D; };
-template<> struct GetAxesType<4, StorageOrders::RowMajor> { using type = AxesRowMajor4D; };
-template<> struct GetAxesType<4, StorageOrders::ColMajor> { using type = AxesColMajor4D; };
-template<> struct GetAxesType<4, StorageOrders::NCHW>     { using type = AxesNCHW; };
-
-
-template<class DataT, int Rank, int Order, class IdxT> struct GetArrayViewType {
-    using type = ArrayView<DataT, typename GetAxesType<Rank, Order>::type, IdxT>;
+template<class AxesT, int StaticDim0=0, int StaticDim1=0, int StaticDim2=0, int StaticDim3=0>
+struct setStaticSizes {
+    using AxisT0 = SET_AXIS_SIZE(AxesT, 0, StaticDim0);
+    using AxisT1 = SET_AXIS_SIZE(AxesT, 1, StaticDim1);
+    using AxisT2 = SET_AXIS_SIZE(AxesT, 2, StaticDim2);
+    using AxisT3 = SET_AXIS_SIZE(AxesT, 3, StaticDim3);
+    using type = Axes<AxisT0, AxisT1, AxisT2, AxisT3>;
 };
 
+template<int Rank, int Order> struct GetDefaultAxesType {};
+template<> struct GetDefaultAxesType<1, StorageOrders::RowMajor> { using type = AxesDense1D; };
+template<> struct GetDefaultAxesType<1, StorageOrders::ColMajor> { using type = AxesDense1D; };
+template<> struct GetDefaultAxesType<2, StorageOrders::RowMajor> { using type = AxesRowMajor2D; };
+template<> struct GetDefaultAxesType<2, StorageOrders::ColMajor> { using type = AxesColMajor2D; };
+template<> struct GetDefaultAxesType<3, StorageOrders::RowMajor> { using type = AxesRowMajor3D; };
+template<> struct GetDefaultAxesType<3, StorageOrders::ColMajor> { using type = AxesColMajor3D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::RowMajor> { using type = AxesRowMajor4D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::ColMajor> { using type = AxesColMajor4D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::NCHW>     { using type = AxesNCHW; };
+
+template<int Rank, int Order, int StaticDim0, int StaticDim1,
+    int StaticDim2, int StaticDim3>
+struct GetAxesType {
+    using baseAxesType = typename GetDefaultAxesType<Rank, Order>::type;
+    using type = typename setStaticSizes<
+        baseAxesType, StaticDim0, StaticDim1, StaticDim2, StaticDim3>::type;
+};
+
+// template<class DataT, int Rank, int Order, class IdxT> struct GetArrayViewType {
+//     using type = ArrayView<DataT,
+//         typename GetDefaultAxesType<Rank, Order>::type, IdxT>;
+// };
+
+// template<int Order=StorageOrders::RowMajor,
+//     int StaticDim0=0, int StaticDim1=0, int StaticDim=0, int StaticDim3=0>
+
+template<int Rank, int Order=StorageOrders::RowMajor,
+    int StaticDim0=0, int StaticDim1=0, int StaticDim2=0, int StaticDim3=0,
+    class IdxT=DefaultIndexType, class DataT=void>
+struct GetArrayViewType {
+    using AxesT = typename GetAxesType<Rank, Order,
+        StaticDim0, StaticDim1, StaticDim2, StaticDim3>::type;
+    using type = ArrayView<DataT, AxesT, IdxT>;
+};
 
 template<int Order=StorageOrders::RowMajor,
-    int StaticDim0=0, int StaticDim1=0, int StaticDim=0, int StaticDim3=0,
+    int StaticDim0=0, int StaticDim1=0, int StaticDim2=0, int StaticDim3=0,
     class IdxT=DefaultIndexType, class DataT=void>
 auto make_view(DataT* data, IdxT dim0, IdxT dim1, IdxT dim2, IdxT dim3)
-    -> GetArrayViewType<DataT, 4, Order, IdxT>
+    -> GetArrayViewType<4, Order,
+        StaticDim0, StaticDim1, StaticDim2, StaticDim3, IdxT, DataT>
 {
-    using AxisT = typename GetAxesType<4, Order>::type;
-    // using AxisT0 = typename AxisT::AxisT0;
-    using AxisT0 = typename setAxisStaticSize<typename AxisT::AxisT0, StaticDim0>::type;
+    using ArrayViewT = GetArrayViewType<4, Order,
+        StaticDim0, StaticDim1, StaticDim2, StaticDim3, IdxT, DataT>;
+
+    return ArrayViewT(data);
+
+
+
+
+
+
+    // SELF: pick up here by enabling passing in shape
+    //      -maybe do this by actually just passing in std::array as the shape
+    // -also make it possible to set strides on array view, ideally
+
+
+
+
+
 }
 
 
