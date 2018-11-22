@@ -79,18 +79,63 @@ using DefaultIndexType = int32_t;
 
 // ================================================================ Axis
 
-template<bool Contiguous=false, bool Dense=true, bool Strided=true, int Used=true>
+template<bool Contiguous=false, bool Dense=true, bool Strided=true,
+    int Used=true, int StaticStride=0, class SizeBounds=NoBounds>
 struct Axis {
-    static const int is_used = Used;
     static const bool is_contig = Contiguous;
     static const bool is_dense = Dense;
     static const bool is_strided = Strided;
+    static const int is_used = Used;
+    static const int stride = StaticStride;
+    using size_bounds = SizeBounds;
 };
 
-using AxisContig = Axis<true, true, true, true>;
+using AxisContig = Axis<true, true, true, true, 1>;
 using AxisDense = Axis<false, true, true, true>;
 using AxisStrided = Axis<false, false, true, true>;
 using AxisUnused = Axis<false, true, true, false>;
+
+// using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
+//         AxisT::is_used, AxisT::stride, typename AxisT::SizeBounds>;
+
+template<class AxisT, bool Contig> struct setAxisContiguous {
+    using type = Axis<Contig, AxisT::is_dense, AxisT::is_strided,
+        AxisT::is_used, AxisT::stride, typename AxisT::SizeBounds>;
+};
+template<class AxisT, bool Dense> struct setAxisDense {
+    using type = Axis<AxisT::is_contig, Dense, AxisT::is_strided,
+        AxisT::is_used, AxisT::stride, typename AxisT::SizeBounds>;
+};
+template<class AxisT, bool Strided> struct setAxisStrided {
+    using type = Axis<AxisT::is_contig, AxisT::is_dense, Strided,
+        AxisT::is_used, AxisT::stride, typename AxisT::SizeBounds>;
+};
+template<class AxisT, int Used> struct setAxisUsed {
+    using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
+        Used, AxisT::stride, typename AxisT::SizeBounds>;
+};
+template<class AxisT, int Stride> struct setAxisStaticStride {
+    using type = Axis<AxisT::is_contig && (Stride == 1), AxisT::is_dense,
+    AxisT::is_strided, AxisT::is_used, Stride, typename AxisT::SizeBounds>;
+};
+template<class AxisT, class SizeBounds> struct setAxisSizeBounds {
+    using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
+        AxisT::is_used, AxisT::stride, SizeBounds>;
+};
+
+template<int size> struct SizeBoundsForStaticSize {
+    static const int valid = size > 0;
+    using type = bint<valid ? size : NoBounds::max,
+                      valid ? size : NoBounds::min, valid>;
+};
+
+template<class AxisT, int StaticSize> struct setAxisStaticSize {
+    using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
+        AxisT::is_used, AxisT::stride,
+        typename SizeBoundsForStaticSize<StaticSize>::type>;
+};
+
+// template<int size> struct SizeBoundsForSize { using type = NoBounds; };
 
 // ================================================================ Axes
 
@@ -114,6 +159,16 @@ struct Axes {
     static_assert(!is_dense || is_any_ax_contig,
         "Somehow dense, but nothing contiguous!?");
 };
+
+template<int ax, class Axes> struct getAxis {};
+template<class Axes> struct getAxis<0, Axes> { using type = typename Axes::AxisT0; };
+template<class Axes> struct getAxis<1, Axes> { using type = typename Axes::AxisT1; };
+template<class Axes> struct getAxis<2, Axes> { using type = typename Axes::AxisT2; };
+template<class Axes> struct getAxis<3, Axes> { using type = typename Axes::AxisT3; };
+
+
+// template<int Ax, class Axis> struct getAxis {};
+// template<class Axis>
 
 // ------------------------------------------------ aliases for common axes
 
@@ -329,6 +384,8 @@ auto make_view(DataT* data, IdxT dim0, IdxT dim1, IdxT dim2, IdxT dim3)
     -> GetArrayViewType<DataT, 4, Order, IdxT>
 {
     using AxisT = typename GetAxesType<4, Order>::type;
+    // using AxisT0 = typename AxisT::AxisT0;
+    using AxisT0 = typename setAxisStaticSize<typename AxisT::AxisT0, StaticDim0>::type;
 }
 
 

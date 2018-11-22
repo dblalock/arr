@@ -20,9 +20,11 @@ int main(int argc, const char * argv[]) {
     std::cout << "Hello, World!\n";
 
 
-    bint<0, 5> i;
-    bint<1, 3> j;
+    bint<5, 0> i(3);
+    bint<1, 3> j(1);
     auto c = i + j;
+    auto d = c + 7.5;
+    printf("d = %g\n", d);
 
     static_assert(decltype(c)::is_nonneg, "c not nonnegative!");
 
