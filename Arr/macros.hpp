@@ -124,6 +124,10 @@
 	#define REQ_HAS_ATTR(T, METHOD_INVOCATION) \
 		typename=decltype(std::declval<T>() . METHOD_INVOCATION)
 
+    #define REQ_RANGE_ENCOMPASSES(LARGER_T, SMALLER_T) \
+        REQ((std::numeric_limits<LARGER_T>::max() >= std::numeric_limits<SMALLER_T>::max()) && \
+            (std::numeric_limits<LARGER_T>::min() <= std::numeric_limits<SMALLER_T>::max()))
+
 	// ------------------------ is_valid; requires C++14
 	// inspired by https://gist.github.com/Jiwan/7a586c739a30dd90d259
 

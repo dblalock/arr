@@ -50,7 +50,7 @@ int main(int argc, const char * argv[]) {
     ArrayView<float, AxesRowMajor2D> v2(&vals[0], {4,3});
     
 //    printf("%g\n", v[7]);
-    printf("elem 2, 3: %g\n", v2[{2, 3}]);
+    printf("elem 2, 3: %g\n", v2[{(int64_t)2, (int64_t)3}]);
     
     return 0;
 }

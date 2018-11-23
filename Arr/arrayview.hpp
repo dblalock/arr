@@ -90,6 +90,8 @@ struct Axis {
     using size_bounds = SizeBounds;
 };
 
+// ------------------------------------------------ axis aliases
+
 using AxisContig = Axis<true, true, true, true, 1>;
 using AxisDense = Axis<false, true, true, true>;
 using AxisStrided = Axis<false, false, true, true>;
@@ -97,6 +99,8 @@ using AxisUnused = Axis<false, true, true, false>;
 
 // using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
 //         AxisT::is_used, AxisT::stride, typename AxisT::SizeBounds>;
+
+// ------------------------------------------------ axis manipulation
 
 template<class AxisT, bool Contig> struct setAxisContiguous {
     using type = Axis<Contig, AxisT::is_dense, AxisT::is_strided,
@@ -163,28 +167,148 @@ template<class AxisT, int StaticSize> struct setAxisStaticSize {
 
 // template<int size> struct SizeBoundsForSize { using type = NoBounds; };
 
+// ============================================================= Storage Order
+
+struct StorageOrders { enum { RowMajor, ColMajor, NCHW, Unspecified }; };
+
+// template<int Order> struct StorageOrder { };
+// template<> struct StorageOrder<StorageOrders::RowMajor> {
+//     static constexpr std::array<int, 4> order {3, 2, 1, 0};
+// };
+
+/** This is to get ND indices from cuda thread/block indices */
+template<int Rank, int Order> struct idxs_from_flat_idx {};
+
+template<int Order> struct idxs_from_flat_idx<1, Order> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        return idx;
+    }
+};
+
+template<> struct idxs_from_flat_idx<2, StorageOrders::RowMajor> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        return {idx / shape[1], idx % shape[1]};
+    }
+};
+template<> struct idxs_from_flat_idx<2, StorageOrders::ColMajor> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        return {idx % shape[0], idx / shape[0]};
+    }
+};
+
+template<> struct idxs_from_flat_idx<3, StorageOrders::RowMajor> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        auto rowidx = idx / (shape[1] * shape[2]);
+        auto flat_idx_into_row = idx % (shape[1] * shape[2]);
+        auto colidx = (flat_idx_into_row / shape[2]);
+        return {rowidx, colidx, idx % shape[2]};
+    }
+};
+template<> struct idxs_from_flat_idx<3, StorageOrders::ColMajor> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        auto chanidx = idx / (shape[0] * shape[1]);
+        auto flat_idx_into_channel = idx % (shape[0] * shape[1]);
+        auto colidx = flat_idx_into_channel / shape[0];
+        return {idx % shape[0], colidx, chanidx};
+    }
+};
+template<> struct idxs_from_flat_idx<4, StorageOrders::RowMajor> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        auto one_sample_sz = shape[1] * shape[2] * shape[3];
+        auto sampleidx = idx / one_sample_sz;
+        auto idx_into_sample = idx % one_sample_sz;
+        auto sample_idxs = idxs_from_flat_idx<3, StorageOrders::RowMajor>{}(
+            ShapeT{shape[1], shape[1], shape[3]}, idx_into_sample);
+        return {sampleidx, sample_idxs[0], sample_idxs[1], sample_idxs[2]};
+    }
+};
+template<> struct idxs_from_flat_idx<4, StorageOrders::ColMajor> {
+    // TODO impl this if needed
+};
+template<> struct idxs_from_flat_idx<4, StorageOrders::NCHW> {
+    template<class ShapeT, class IdxT>
+    ShapeT operator()(const ShapeT& shape, IdxT idx) {
+        auto one_sample_sz = shape[1] * shape[2] * shape[3];
+        auto sample_idx = idx / one_sample_sz;
+
+        auto idx_into_sample = idx % one_sample_sz;
+        auto one_channel_sz = shape[1] * shape[2];
+        auto chan_idx = idx_into_sample / one_channel_sz;
+
+        auto idx_into_channel = idx_into_sample % one_channel_sz;
+        auto one_row_sz = shape[2];
+        auto row_idx = idx_into_channel / one_row_sz;
+        auto col_idx = idx_into_channel % one_row_sz;
+
+        return {sample_idx, row_idx, col_idx, chan_idx};
+    }
+};
+
+
+// compute Axes storage order based on axis characteristics
+
 // ================================================================ Axes
 
 // ------------------------------------------------ axis type
 
 template<class Ax0=AxisContig, class Ax1=AxisUnused,
-    class Ax2=AxisUnused, class Ax3=AxisUnused >
+         class Ax2=AxisUnused, class Ax3=AxisUnused,
+         int Order=StorageOrders::Unspecified>
 struct Axes {
+    using AxisT0 = Ax0;
+    using AxisT1 = Ax1;
+    using AxisT2 = Ax2;
+    using AxisT3 = Ax3;
+
+    static const int order = Order;
     static const int rank =
         Ax0::is_used + Ax1::is_used + Ax2::is_used + Ax3::is_used;
     static const bool is_any_ax_contig =
         Ax0::is_contig || Ax1::is_contig || Ax2::is_contig || Ax3::is_contig;
     static const bool is_dense =
         Ax0::is_dense && Ax1::is_dense && Ax2::is_dense && Ax3::is_dense;
-    using AxisT0 = Ax0;
-    using AxisT1 = Ax1;
-    using AxisT2 = Ax2;
-    using AxisT3 = Ax3;
+
+    // static const int is_rowmajor = Ax0::is_contig
+
 
     // is_dense -> one ax must be contiguous, or this makes no sense
     static_assert(!is_dense || is_any_ax_contig,
         "Somehow dense, but nothing contiguous!?");
 };
+
+
+// template<int Ax, class Axis> struct getAxis {};
+// template<class Axis>
+
+// ------------------------------------------------ aliases for common axes
+
+using AxesDense1D =
+    Axes<AxisContig, AxisUnused, AxisUnused, AxisUnused, StorageOrders::RowMajor>;
+
+using AxesRowMajor2D =
+    Axes<AxisDense, AxisContig, AxisUnused, AxisUnused, StorageOrders::RowMajor>;
+using AxesRowMajor3D =
+    Axes<AxisStrided, AxisDense, AxisContig, AxisUnused, StorageOrders::RowMajor>;
+using AxesRowMajor4D =
+    Axes<AxisDense, AxisDense, AxisDense, AxisContig, StorageOrders::RowMajor>;
+
+using AxesColMajor2D =
+    Axes<AxisContig, AxisDense, AxisUnused, AxisUnused, StorageOrders::ColMajor>;
+using AxesColMajor3D =
+    Axes<AxisContig, AxisDense, AxisDense, AxisUnused, StorageOrders::ColMajor>;
+using AxesColMajor4D =
+    Axes<AxisContig, AxisDense, AxisDense, AxisDense, StorageOrders::ColMajor>;
+
+using AxesNCHW =
+    Axes<AxisDense, AxisDense, AxisContig, AxisDense, StorageOrders::NCHW>;
+
+// ------------------------------------------------ axes manipulation
 
 template<int ax, class Axes> struct getAxis {};
 template<class Axes> struct getAxis<0, Axes> { using type = typename Axes::AxisT0; };
@@ -194,39 +318,34 @@ template<class Axes> struct getAxis<3, Axes> { using type = typename Axes::AxisT
 
 #define GET_AXIS_T(AXES, INT) typename getAxis<INT, AXES>::type
 
-// template<int Ax, class Axis> struct getAxis {};
-// template<class Axis>
-
-// ------------------------------------------------ aliases for common axes
-
-using AxesDense1D =
-    Axes<AxisContig, AxisUnused, AxisUnused, AxisUnused>;
-
-using AxesRowMajor2D =
-    Axes<AxisDense, AxisContig, AxisUnused, AxisUnused>;
-using AxesRowMajor3D =
-    Axes<AxisStrided, AxisDense, AxisContig, AxisUnused>;
-using AxesRowMajor4D =
-    Axes<AxisDense, AxisDense, AxisDense, AxisContig>;
-
-using AxesColMajor2D =
-    Axes<AxisContig, AxisDense, AxisUnused, AxisUnused>;
-using AxesColMajor3D =
-    Axes<AxisContig, AxisDense, AxisDense, AxisUnused>;
-using AxesColMajor4D =
-    Axes<AxisContig, AxisDense, AxisDense, AxisDense>;
-
-using AxesNCHW =
-    Axes<AxisDense, AxisDense, AxisContig, AxisDense>;
-
-// ------------------------------------------------ StorageOrder
-
-struct StorageOrders { enum { RowMajor, ColMajor, NCHW, Unspecified }; };
-
-template<int Order> struct StorageOrder { };
-template<> struct StorageOrder<StorageOrders::RowMajor> {
-    static constexpr std::array<int, 4> order {3, 2, 1, 0};
+template<class AxesT, int StaticDim0=0, int StaticDim1=0, int StaticDim2=0, int StaticDim3=0>
+struct setStaticSizes {
+    using AxisT0 = SET_AXIS_SIZE(AxesT, 0, StaticDim0);
+    using AxisT1 = SET_AXIS_SIZE(AxesT, 1, StaticDim1);
+    using AxisT2 = SET_AXIS_SIZE(AxesT, 2, StaticDim2);
+    using AxisT3 = SET_AXIS_SIZE(AxesT, 3, StaticDim3);
+    using type = Axes<AxisT0, AxisT1, AxisT2, AxisT3, AxesT::order>;
 };
+
+template<int Rank, int Order> struct GetDefaultAxesType {};
+template<> struct GetDefaultAxesType<1, StorageOrders::RowMajor> { using type = AxesDense1D; };
+template<> struct GetDefaultAxesType<1, StorageOrders::ColMajor> { using type = AxesDense1D; };
+template<> struct GetDefaultAxesType<2, StorageOrders::RowMajor> { using type = AxesRowMajor2D; };
+template<> struct GetDefaultAxesType<2, StorageOrders::ColMajor> { using type = AxesColMajor2D; };
+template<> struct GetDefaultAxesType<3, StorageOrders::RowMajor> { using type = AxesRowMajor3D; };
+template<> struct GetDefaultAxesType<3, StorageOrders::ColMajor> { using type = AxesColMajor3D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::RowMajor> { using type = AxesRowMajor4D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::ColMajor> { using type = AxesColMajor4D; };
+template<> struct GetDefaultAxesType<4, StorageOrders::NCHW>     { using type = AxesNCHW; };
+
+template<int Rank, int Order, int StaticDim0, int StaticDim1,
+    int StaticDim2, int StaticDim3>
+struct GetAxesType {
+    using baseAxesType = typename GetDefaultAxesType<Rank, Order>::type;
+    using type = typename setStaticSizes<
+        baseAxesType, StaticDim0, StaticDim1, StaticDim2, StaticDim3>::type;
+};
+
 
 // ------------------------------------------------ strides for various axes
 
@@ -296,61 +415,79 @@ std::array<IdxT, AxesT::rank> default_strides_for_shape(
 
 // ================================================================ IdxSet
 
-template<class IdxT, REQUIRE_INT(IdxT)>
-struct IdxSet4 {
-    IdxSet4(IdxT idx0, IdxT idx1, IdxT idx2, IdxT idx3):
-        idxs{idx0, idx1, idx2, idx3} {};
-    std::array<IdxT, 4> idxs;
-        // i0(idx0), i1(idx1), i2(idx2), i3(idx3) {};
-    // IdxT i0, i1, i2, i3;
-};
-template<class IdxT, REQUIRE_INT(IdxT)>
-struct IdxSet3 {
-    IdxSet3(IdxT idx0, IdxT idx1, IdxT idx2):
-        idxs{idx0, idx1, idx2} {};
-    std::array<IdxT, 3> idxs;
-    //     i0(idx0), i1(idx1), i2(idx2) {};
-    // IdxT i0, i1, i2;
-};
-template<class IdxT, REQUIRE_INT(IdxT)>
-struct IdxSet2 {
-    IdxSet2(IdxT idx0, IdxT idx1):
-        idxs{idx0, idx1} {};
-    std::array<IdxT, 2> idxs;
-    // IdxSet2(IdxT idx0, IdxT idx1=0):
-    //     i0(idx0), i1(idx1) {};
-    // IdxT i0, i1;
-};
-template<class IdxT, REQUIRE_INT(IdxT)>
-struct IdxSet1 {
-    IdxSet1(IdxT idx0):
-        idxs({idx0}) {};
-    std::array<IdxT, 1> idxs;
-    // IdxSet1(IdxT idx0):
-    //     i0(idx0) {};
-    // IdxT i0;
-};
-
-// enum class StorageOrder : std::array<int, 4> {
-//     RowMajor = std::array<int, 4>{3, 2, 1, 0};
-//     ColMajor = std::array<int, 4>{0, 1, 2, 3};
-//     NCHW = std::array<int, 4>{3, 1, 0, 2};
-//     Unspecified = std::array<int, 4>{-1, -1, -1, -1};
+// template<class IdxT, REQUIRE_INT(IdxT)>
+// struct IdxSet4 {
+//     IdxSet4(IdxT idx0, IdxT idx1, IdxT idx2, IdxT idx3):
+//         idxs{idx0, idx1, idx2, idx3} {};
+//     std::array<IdxT, 4> idxs;
+//         // i0(idx0), i1(idx1), i2(idx2), i3(idx3) {};
+//     // IdxT i0, i1, i2, i3;
+// };
+// template<class IdxT, REQUIRE_INT(IdxT)>
+// struct IdxSet3 {
+//     IdxSet3(IdxT idx0, IdxT idx1, IdxT idx2):
+//         idxs{idx0, idx1, idx2} {};
+//     std::array<IdxT, 3> idxs;
+//     //     i0(idx0), i1(idx1), i2(idx2) {};
+//     // IdxT i0, i1, i2;
+// };
+// template<class IdxT, REQUIRE_INT(IdxT)>
+// struct IdxSet2 {
+//     IdxSet2(IdxT idx0, IdxT idx1):
+//         idxs{idx0, idx1} {};
+//     std::array<IdxT, 2> idxs;
+//     // IdxSet2(IdxT idx0, IdxT idx1=0):
+//     //     i0(idx0), i1(idx1) {};
+//     // IdxT i0, i1;
+// };
+// template<class IdxT, REQUIRE_INT(IdxT)>
+// struct IdxSet1 {
+//     IdxSet1(IdxT idx0):
+//         idxs({idx0}) {};
+//     std::array<IdxT, 1> idxs;
+//     // IdxSet1(IdxT idx0):
+//     //     i0(idx0) {};
+//     // IdxT i0;
 // };
 
-template<int rank, class IdxT> struct IdxSet {};
-template<class IdxT> struct IdxSet<1, IdxT> { using type = IdxSet1<IdxT>; };
-template<class IdxT> struct IdxSet<2, IdxT> { using type = IdxSet2<IdxT>; };
-template<class IdxT> struct IdxSet<3, IdxT> { using type = IdxSet3<IdxT>; };
-template<class IdxT> struct IdxSet<4, IdxT> { using type = IdxSet4<IdxT>; };
+// // enum class StorageOrder : std::array<int, 4> {
+// //     RowMajor = std::array<int, 4>{3, 2, 1, 0};
+// //     ColMajor = std::array<int, 4>{0, 1, 2, 3};
+// //     NCHW = std::array<int, 4>{3, 1, 0, 2};
+// //     Unspecified = std::array<int, 4>{-1, -1, -1, -1};
+// // };
+
+// template<int rank, class IdxT> struct IdxSet {};
+// template<class IdxT> struct IdxSet<1, IdxT> { using type = IdxSet1<IdxT>; };
+// template<class IdxT> struct IdxSet<2, IdxT> { using type = IdxSet2<IdxT>; };
+// template<class IdxT> struct IdxSet<3, IdxT> { using type = IdxSet3<IdxT>; };
+// template<class IdxT> struct IdxSet<4, IdxT> { using type = IdxSet4<IdxT>; };
+
+// ================================================================ ArrayView
+
+// template<int Rank, class T1, class T2>
+// static inline auto static_dot(const T1& lhs, const T1& rhs)
+//     -> decltype(lhs[0] + rhs[0])
+// {
+//     decltype(lhs[0] + rhs[0]) ret = 0;
+//     for (int i = 0; i < Rank; i++) {
+//         ret += lhs[i] * rhs[i];
+//     }
+//     return ret;
+// }
+
+// template<int Order> struct ArrayViewInfo { using order == };
 
 template<class DataT, class AxesT=AxesDense1D, class IdxT=DefaultIndexType>
 struct ArrayView {
     static const int rank = AxesT::rank;
-    using axis_t = AxesT;
+    static const int order = AxesT::order;
+    using axes_t = AxesT;
     using strides_t = std::array<IdxT, rank>;
     using shape_t = std::array<IdxT, rank>;
-    using idxset_t = typename IdxSet<rank, IdxT>::type;
+    using idxs_t = strides_t;
+    // using idxset_t = typename IdxSet<rank, IdxT>::type;
+    // using idxset_t = typename std::array<rank, IdxT>::type;
 
     // static const bool is_contig = Ax1::is_contig
 
@@ -362,19 +499,49 @@ struct ArrayView {
         printf("I have rank %d\n", rank);
     };
 
+    // these two funcs are to make using CUDA thread/block indices easier
+    IdxT flatten_idxs(const idxs_t& idxs) {
+        IdxT idx = 0;
+        for (int i = 0; i < rank; i++) {
+            idx += idxs[i] * _strides[i];
+        }
+        return idx;
+    }
+    // needs dense array; TODO allow arbitrary strides
+    idxs_t unflatten_dense_idx(IdxT idx) {
+        auto helper = idxs_from_flat_idx<rank, order>();
+        return helper(_shape, idx);
+    }
+
     // DataT& operator[](IdxT i0, IdxT i1, IdxT i2, IdxT i3) {
-    DataT& operator[](const idxset_t idxs) {
+    // DataT& operator[](const idxset_t idxs) {
+    template<class IntT=IdxT, REQ_RANGE_ENCOMPASSES(IdxT, IntT)>
+    DataT& operator[](const idxs_t& idxs) {
+    // DataT& operator[](const idxset_t idxs) {
         // printf("idxs: %d, %d, %d, %d\n", idxs.i0, idxs.i1, idxs.i2, idxs.i3);
-        ar::print(idxs.idxs.data(), rank, "idxs");
+//        ar::print(idxs.idxs.data(), rank, "idxs");
         ar::print(_shape.data(), rank, "shape");
         ar::print(_strides.data(), rank, "strides");
+
+        // IdxT offset = 0;
+        // for (int i = 0; i < rank; i++) {
+        //     offset += idxs[i] * _strides[i];
+        // }
+        // return _data[offset];
+        return _data[flatten_idxs(idxs)];
+
+        // return _data[static_dot<rank>(idxs, strides)];
         // printf("shape: %d, %d, %d, %d\n", idxs.i0, idxs.i1, idxs.i2, idxs.i3);
         // printf("strides: %d, %d, %d, %d\n", idxs.i0, idxs.i1, idxs.i2, idxs.i3);
-        return _data[0];
+        // return _data[0];
         // TODO uncomment
         // return _data[idxs.i0 * _strides[0] + idxs.i1 * _strides[1]
         //            + idxs.i2 * _strides[1] + idxs.i3 * _strides[3]];
     }
+
+    const shape_t& shape() const { return _shape; }
+    const shape_t& strides() const { return _strides; }
+
     // const DataT& operator[](const IdxSet<IdxT, 4> idxs) {
     //     return _data + idxs.i0 * _strides[0] + idxs.i1 * _strides[1]
     //                  + idxs.i2 * _strides[1] + idxs.i3 * _strides[3];
@@ -386,33 +553,17 @@ private:
     const strides_t _strides;
 };
 
-template<class AxesT, int StaticDim0=0, int StaticDim1=0, int StaticDim2=0, int StaticDim3=0>
-struct setStaticSizes {
-    using AxisT0 = SET_AXIS_SIZE(AxesT, 0, StaticDim0);
-    using AxisT1 = SET_AXIS_SIZE(AxesT, 1, StaticDim1);
-    using AxisT2 = SET_AXIS_SIZE(AxesT, 2, StaticDim2);
-    using AxisT3 = SET_AXIS_SIZE(AxesT, 3, StaticDim3);
-    using type = Axes<AxisT0, AxisT1, AxisT2, AxisT3>;
-};
 
-template<int Rank, int Order> struct GetDefaultAxesType {};
-template<> struct GetDefaultAxesType<1, StorageOrders::RowMajor> { using type = AxesDense1D; };
-template<> struct GetDefaultAxesType<1, StorageOrders::ColMajor> { using type = AxesDense1D; };
-template<> struct GetDefaultAxesType<2, StorageOrders::RowMajor> { using type = AxesRowMajor2D; };
-template<> struct GetDefaultAxesType<2, StorageOrders::ColMajor> { using type = AxesColMajor2D; };
-template<> struct GetDefaultAxesType<3, StorageOrders::RowMajor> { using type = AxesRowMajor3D; };
-template<> struct GetDefaultAxesType<3, StorageOrders::ColMajor> { using type = AxesColMajor3D; };
-template<> struct GetDefaultAxesType<4, StorageOrders::RowMajor> { using type = AxesRowMajor4D; };
-template<> struct GetDefaultAxesType<4, StorageOrders::ColMajor> { using type = AxesColMajor4D; };
-template<> struct GetDefaultAxesType<4, StorageOrders::NCHW>     { using type = AxesNCHW; };
 
-template<int Rank, int Order, int StaticDim0, int StaticDim1,
-    int StaticDim2, int StaticDim3>
-struct GetAxesType {
-    using baseAxesType = typename GetDefaultAxesType<Rank, Order>::type;
-    using type = typename setStaticSizes<
-        baseAxesType, StaticDim0, StaticDim1, StaticDim2, StaticDim3>::type;
-};
+// template<int rank, REQ(rank == 1)>
+// std::array<IdxT, rank> idxs_from_flat_idx(IdxT offset) {
+//     return offset;
+// }
+// template<REQ(rank == 2)>
+// std::array<IdxT, rank> idxs_from_flat_idx(IdxT offset) {
+//     return offset;
+// }
+
 
 // template<class DataT, int Rank, int Order, class IdxT> struct GetArrayViewType {
 //     using type = ArrayView<DataT,
@@ -450,6 +601,7 @@ auto make_view(DataT* data, IdxT dim0, IdxT dim1, IdxT dim2, IdxT dim3)
 
     // SELF: pick up here by enabling passing in shape
     //      -maybe do this by actually just passing in std::array as the shape
+    //      -also enforce that static sizes trump dynamic ones
     // -also make it possible to set strides on array view, ideally
 
 
@@ -458,6 +610,10 @@ auto make_view(DataT* data, IdxT dim0, IdxT dim1, IdxT dim2, IdxT dim3)
 
 }
 
-
+// here are some examples of the API we want to support:
+// make_view<RowMajor, -1, 16, -1>(data, 5, -1, 10)
+// make_view(data, 10)
+// make_view<ColMajor, 20>(data)
+// make_view<NCHW>(data, 3)  // static assert fails; needs 4D
 
 #endif /* array_h */
