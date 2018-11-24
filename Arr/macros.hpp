@@ -89,8 +89,13 @@
 
 	// ------------------------ require that some constexpr be true
 
+    #define ENABLE_IF(EXPR) \
+        typename std::enable_if<(EXPR)>::type
+
 	#define REQ(EXPR) \
-		typename = typename std::enable_if<EXPR, void>::type
+        typename = ENABLE_IF(EXPR)
+
+		// typename = typename std::enable_if<(EXPR), void>::type
 
 	// have to wrap EXPR in a local template param for enable_if to work on
 	// a class method where EXPR is a class template param
@@ -178,9 +183,6 @@
 
 	#define REQ_TYPE_PASSES(T, TEST) \
 		REQ(TYPE_PASSES_TEST(T, TEST))
-
-	#define ENABLE_IF(EXPR, T) \
-		typename std::enable_if<EXPR, T>::type
 
 
     // ------------------------ TYPES(...) convenience macro for template args

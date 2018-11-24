@@ -43,14 +43,21 @@ int main(int argc, const char * argv[]) {
     assert(strides1D[0] == 1);
     assert(strides1D.size() == 1);
     
-    const int n = 12;
+    const int n = 24;
     float vals[n];
     for (int i = 0; i < n; i++) { vals[i] = i; }
     ArrayView<float> v(&vals[0], {n});
     ArrayView<float, AxesRowMajor2D> v2(&vals[0], {4,3});
     
+    auto ar2d = make_view(vals, 2, 12);
+    auto ar3d = make_view(vals, 2, 6, 2);
+    auto ar4d = make_view(vals, 2, 2, 2, 3);
+    
 //    printf("%g\n", v[7]);
-    printf("elem 2, 3: %g\n", v2[{(int64_t)2, (int64_t)3}]);
+    printf("ar v2: elem 3, 2: %g\n", v2[{3, 2}]);
+    printf("elem 1, 11: %g\n", ar2d[{1, 11}]);
+    printf("elem 1, 5, 1: %g\n", ar3d[{1, 5, 1}]);
+    printf("elem 1, 5, 1: %g\n", ar4d[{1, 1, 1, 2}]);
     
     return 0;
 }

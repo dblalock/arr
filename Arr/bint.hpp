@@ -19,7 +19,11 @@
 #define MAX(X, Y) ( ((X) >= (Y)) ? (X) : (Y) )
 
 // TODO implement compile-time add, sub, mul, div using TMP
-template<int Max=-1, int Min=0, bool Valid=true, class IntT=int32_t>
+
+// using bint_int_t = int32_t;
+
+// template<int Max=-1, int Min=0, bool Valid=true, class IntT=int32_t>
+template<int Max=-1, int Min=0, bool Valid=true>
 class bint {
 public:
     static const int min = MIN(Min, Max);
@@ -28,6 +32,7 @@ public:
     static const bool is_nonneg = (max >= 0) && (min >= 0);
     static const bool is_pos = (max > 0) && (min > 0);
     static const bool is_bint = true; // to ease checks for non-bint types
+    using int_t = int;
 
     // TODO we could could extend operator overloads to prove no
     // int overflows; set valid to false if one is possible
@@ -36,16 +41,28 @@ public:
     // TODO determine number of bits needed
     // static const int needed_bits_signed = MAX(NEEDED_NBITS_SIGNED(min))
 
-    bint(IntT value): val(value) {};
-    IntT get() const { return val; }
+    bint(int_t value): val(value) {};
+    int_t get() const { return val; }
 
     template<class T> T cast() const { return static_cast<T>(val); }
 
 private:
-    IntT val;
+    int_t val;
 };
 
-using NoBounds = bint<0, 0, false>;
+// using NoBounds = bint<0, 0, false>;
+struct anySz {
+    static const int is_valid = false;
+    static const int min = 0;
+    static const int max = 0;
+};
+using NoBounds = anySz; // AnySz is shorter in errors, but less clear in code
+template<int Value=-1>
+struct ConstSize {
+    static const int is_valid = Value > 0;
+    static const int min = Value;
+    static const int max = Value;
+};
 
 //template<class T, bool Valid=T::is_valid> struct is_valid { static const bool value = Valid; };
 //template<class T> struct is_valid { static const bool value = false; };
