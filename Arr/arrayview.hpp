@@ -77,6 +77,30 @@
 
 using DefaultIndexType = int32_t;
 
+// =============================================================== Static Sizes
+
+struct anySz {
+    static const int is_valid = false;
+    static const int min = 0;
+    static const int max = 0;
+};
+using NoBounds = anySz; // AnySz is shorter in errors, but less clear in code
+
+template<int Value=-1> struct ConstSize {
+    static const int is_valid = Value > 0;
+    static const int min = Value;
+    static const int max = Value;
+};
+
+template<int StaticSize, typename = void>
+struct getSizeBound { using type = NoBounds; };
+
+template<int StaticSize>
+struct getSizeBound<StaticSize, ENABLE_IF(StaticSize > 0)>
+{
+    using type = ConstSize<StaticSize>;
+};
+
 // ================================================================ Axis
 
 struct AxisAttr {
@@ -176,31 +200,21 @@ template<class AxisT, class SizeBounds> struct setAxisSizeBounds {
 
 
 // template<int StaticSize, typename = typename std::enable_if<StaticSize > 0, void>::type>
-// template<int foo, int StaticSize, class _> struct _sizeBound {};
+// template<int foo, int StaticSize, class _> struct getSizeBound {};
 
 // template<int StaticSize, REQ(StaticSize <= 0)>
-// struct _sizeBound<42, StaticSize, void> {
+// struct getSizeBound<42, StaticSize, void> {
 //     using type = NoBounds;
 // };
 // template<int StaticSize, REQ(StaticSize > 0)>
-// struct _sizeBound<42, StaticSize, void> {
+// struct getSizeBound<42, StaticSize, void> {
 //     using type = ConstSize<StaticSize>;
 // };
 
-template<int StaticSize, typename = void>
-struct _sizeBound {
-    using type = NoBounds;
-};
-// struct _sizeBound<StaticSize, typename std::enable_if<(StaticSize >= 1)>::type>
-template<int StaticSize>
-struct _sizeBound<StaticSize, ENABLE_IF(StaticSize > 0)>
-{
-    using type = NoBounds;
-};
 
 template<class AxisT, int StaticSize> struct setAxisStaticSize {
     // using SizeBoundsT = ConstSize<StaticSize>;
-    using SizeBoundsT = typename _sizeBound<StaticSize>::type;
+    using SizeBoundsT = typename getSizeBound<StaticSize>::type;
     using type = typename setAxisSizeBounds<AxisT, SizeBoundsT>::type;
     // using type = Axis<AxisT::is_contig, AxisT::is_dense, AxisT::is_strided,
     //     AxisT::is_used, AxisT::stride,

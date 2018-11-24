@@ -51,18 +51,7 @@ private:
 };
 
 // using NoBounds = bint<0, 0, false>;
-struct anySz {
-    static const int is_valid = false;
-    static const int min = 0;
-    static const int max = 0;
-};
-using NoBounds = anySz; // AnySz is shorter in errors, but less clear in code
-template<int Value=-1>
-struct ConstSize {
-    static const int is_valid = Value > 0;
-    static const int min = Value;
-    static const int max = Value;
-};
+
 
 //template<class T, bool Valid=T::is_valid> struct is_valid { static const bool value = Valid; };
 //template<class T> struct is_valid { static const bool value = false; };
