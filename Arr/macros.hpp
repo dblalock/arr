@@ -11,6 +11,13 @@
 // ------------------------ restrict keyword
 // adapted from http://stackoverflow.com/a/5948101/1153180
 
+#ifndef MIN
+    #define MIN(X, Y) ( ((X) <= (Y)) ? (X) : (Y) )
+#endif
+#ifndef MAX
+    #define MAX(X, Y) ( ((X) >= (Y)) ? (X) : (Y) )
+#endif
+
 #if defined(__GNUC__) && ((__GNUC__ > 3) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
 	#define RESTRICT __restrict__
 

@@ -15,9 +15,6 @@
 
 // #include "macros.hpp"
 
-#define MIN(X, Y) ( ((X) <= (Y)) ? (X) : (Y) )
-#define MAX(X, Y) ( ((X) >= (Y)) ? (X) : (Y) )
-
 // TODO implement compile-time add, sub, mul, div using TMP
 
 // using bint_int_t = int32_t;

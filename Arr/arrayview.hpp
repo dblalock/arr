@@ -12,10 +12,10 @@
 #include <array>
 #include <assert.h>
 
-#include "bint.hpp"
+//#include "bint.hpp"
 #include "macros.hpp" // for SFINAE macros
 
-#include "array_utils.hpp" // for debug
+//#include "array_utils.hpp" // for debug
 
 // /** elements of tensor are contiguous along this ax with stride of 1;
 //  * e.g., axis 1 in a row-major matrix
@@ -583,10 +583,10 @@ ShapeT clip_shape_to_static_bounds(const ShapeT& shape) {
     if (rank >= 2 && bounds1::is_valid) {
         ret[1] = MIN(MAX(bounds1::min, shape[1]), bounds1::max);
     }
-    if (rank >= 3 && bounds1::is_valid) {
+    if (rank >= 3 && bounds2::is_valid) {
         ret[2] = MIN(MAX(bounds2::min, shape[2]), bounds2::max);
     }
-    if (rank >= 4 && bounds1::is_valid) {
+    if (rank >= 4 && bounds3::is_valid) {
         ret[3] = MIN(MAX(bounds3::min, shape[3]), bounds3::max);
     }
     return ret;

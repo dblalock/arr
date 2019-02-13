@@ -10,8 +10,14 @@
 
 #include <assert.h>
 
-#include "arrayview.hpp"
-#include "bint.hpp"
+#define USE_ARRAYVIEW_VERSION 2
+
+#if USE_ARRAYVIEW_VERSION == 1
+    #include "arrayview.hpp"
+    #include "bint.hpp"
+#elif USE_ARRAYVIEW_VERSION == 2
+    #include "arrayview2.hpp"
+#endif
 
 #include "array_utils.hpp"
 
@@ -19,7 +25,9 @@ int main(int argc, const char * argv[]) {
     // insert code here...
     std::cout << "Hello, World!\n";
 
+    using namespace ar;
 
+#if USE_ARRAYVIEW_VERSION == 1
     bint<5, 0> i(3);
     bint<1, 3> j(1);
     auto c = i + j;
@@ -48,7 +56,14 @@ int main(int argc, const char * argv[]) {
     for (int i = 0; i < n; i++) { vals[i] = i; }
     ArrayView<float> v(&vals[0], {n});
     ArrayView<float, AxesRowMajor2D> v2(&vals[0], {4,3});
+#elif USE_ARRAYVIEW_VERSION == 2
+    const int n = 24;
+    float vals[n];
+    for (int i = 0; i < n; i++) { vals[i] = i; }
+    ArrayView<float> v(&vals[0], {n});
+    ArrayView<float, ar::format::RowMajor2D> v2(&vals[0], {4,3});
     
+#endif
     auto ar2d = make_view(vals, 2, 12);
     auto ar3d = make_view(vals, 2, 6, 2);
     auto ar4d = make_view(vals, 2, 2, 2, 3);

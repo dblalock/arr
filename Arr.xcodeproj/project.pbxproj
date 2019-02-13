@@ -26,7 +26,10 @@
 		7209CA3521A5F25C00179284 /* Arr */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Arr; sourceTree = BUILT_PRODUCTS_DIR; };
 		7209CA3821A5F25C00179284 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		7209CA3F21A5F29000179284 /* bint.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = bint.hpp; sourceTree = "<group>"; };
-		7209CA4021A5F93300179284 /* arrayview.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = arrayview.hpp; path = Arr/arrayview.hpp; sourceTree = "<group>"; };
+		7209CA4021A5F93300179284 /* arrayview.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = arrayview.hpp; sourceTree = "<group>"; };
+		725F9D5721E6A540002EC71F /* macros.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = macros.hpp; sourceTree = "<group>"; };
+		725F9D5821E6A559002EC71F /* array_utils.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = array_utils.hpp; sourceTree = "<group>"; };
+		72CB37172213B5060098C335 /* arrayview2.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = arrayview2.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,7 +46,6 @@
 		7209CA2C21A5F25C00179284 = {
 			isa = PBXGroup;
 			children = (
-				7209CA4021A5F93300179284 /* arrayview.hpp */,
 				7209CA3721A5F25C00179284 /* Arr */,
 				7209CA3621A5F25C00179284 /* Products */,
 			);
@@ -60,8 +62,12 @@
 		7209CA3721A5F25C00179284 /* Arr */ = {
 			isa = PBXGroup;
 			children = (
+				7209CA4021A5F93300179284 /* arrayview.hpp */,
+				725F9D5821E6A559002EC71F /* array_utils.hpp */,
+				725F9D5721E6A540002EC71F /* macros.hpp */,
 				7209CA3821A5F25C00179284 /* main.cpp */,
 				7209CA3F21A5F29000179284 /* bint.hpp */,
+				72CB37172213B5060098C335 /* arrayview2.hpp */,
 			);
 			path = Arr;
 			sourceTree = "<group>";
@@ -243,7 +249,7 @@
 		7209CA3D21A5F25C00179284 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DZDSDMCUYH;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -253,7 +259,7 @@
 		7209CA3E21A5F25C00179284 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = DZDSDMCUYH;
 				PRODUCT_NAME = "$(TARGET_NAME)";
